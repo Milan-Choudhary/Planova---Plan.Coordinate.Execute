@@ -21,7 +21,7 @@ export function IncidentDetailPage() {
 
   const planId = incident.data?.planId;
   const needsMembers = incident.data?.allowedActions.includes('ASSIGN') ?? false;
-  const members = useLoad<PlanMember[]>(needsMembers && planId ? `/api/v1/plans/${planId}/members` : null);
+  const members = useLoad<PlanMember[]>(needsMembers && planId ? `/api/v1/plans/${planId}/workers` : null);
 
   async function act(action: IncidentAction, i: Incident) {
     setError(null);

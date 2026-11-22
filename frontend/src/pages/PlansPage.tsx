@@ -86,7 +86,7 @@ function CreatePlanForm() {
       <label htmlFor="plan-team">Responder team (handles incidents)</label>
       <select id="plan-team" value={teamId} onChange={(e) => setTeamId(e.target.value)}>
         <option value="">— none (incidents cannot be auto-assigned) —</option>
-        {teams.data?.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+        {teams.data?.filter((t) => t.canManage).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
       </select>
       <button className="btn" type="submit" disabled={saving}>{saving ? 'Creating…' : 'Create plan'}</button>
     </form>

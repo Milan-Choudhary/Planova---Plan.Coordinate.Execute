@@ -114,7 +114,7 @@ export function UsersAdminPage() {
                       value={u.role}
                       onChange={(e) => void handleChange(u, { role: e.target.value as Role })}
                     >
-                      {ROLES.map((r) => (
+                      {ROLES.filter((r) => r !== 'ADMIN' || u.role === 'ADMIN').map((r) => (
                         <option key={r} value={r}>
                           {r}
                         </option>
@@ -157,7 +157,7 @@ export function UsersAdminPage() {
 
         <label htmlFor="new-role">Role</label>
         <select id="new-role" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as Role })}>
-          {ROLES.map((r) => (
+          {ROLES.filter((r) => r !== 'ADMIN').map((r) => (
             <option key={r} value={r}>
               {r}
             </option>

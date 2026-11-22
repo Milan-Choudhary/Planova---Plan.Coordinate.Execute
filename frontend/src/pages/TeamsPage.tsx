@@ -42,7 +42,7 @@ export function TeamsPage() {
         </LoadState>
       </section>
       {selected && <TeamDetailCard id={selected} canAdmin={user?.role === 'ADMIN'} myId={user?.id} />}
-      {user?.role === 'ADMIN' && (
+      {(user?.role === 'ADMIN' || user?.role === 'ORGANIZER') && (
         <form className="card" onSubmit={create} noValidate aria-label="Create team">
           <h2>Create team</h2>
           {error && <div className="alert alert-error" role="alert">{error}</div>}
@@ -58,6 +58,28 @@ export function TeamsPage() {
 function TeamDetailCard({ id, canAdmin, myId }: { id: string; canAdmin: boolean; myId?: string }) {
   const team = useLoad<TeamDetail>(`/api/v1/teams/${id}`);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function addMember(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const order = data.get('order');
+    setError(null);
+    setSaving(true);
+    try {
+      await apiFetch(`/api/v1/teams/${id}/members/by-email`, {
+        method: 'POST',
+        body: { email: data.get('email'), teamRole: data.get('role'), escalationOrder: order ? Number(order) : undefined },
+      });
+      form.reset();
+      team.reload();
+    } catch (err) {
+      setError(messageOf(err));
+    } finally {
+      setSaving(false);
+    }
+  }
   async function toggle(userId: string, available: boolean) {
     setError(null);
     try {
@@ -92,6 +114,22 @@ function TeamDetailCard({ id, canAdmin, myId }: { id: string; canAdmin: boolean;
                 ))}
               </tbody>
             </table>
+            {t.canManage && (
+              <form onSubmit={addMember} aria-label="Add or update team member">
+                <h3>Add or update team member</h3>
+                <label htmlFor="team-member-email">Registered email</label>
+                <input id="team-member-email" name="email" type="email" required />
+                <label htmlFor="team-member-role">Team role</label>
+                <select id="team-member-role" name="role" defaultValue="RESPONDER">
+                  <option value="RESPONDER">Responder</option>
+                  <option value="LEAD">Team lead</option>
+                  <option value="MEMBER">Member</option>
+                </select>
+                <label htmlFor="team-member-order">Escalation position (optional)</label>
+                <input id="team-member-order" name="order" type="number" min={1} step={1} />
+                <button type="submit" className="btn" disabled={saving}>Save team member</button>
+              </form>
+            )}
           </>
         )}
       </LoadState>

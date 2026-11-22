@@ -103,15 +103,15 @@ describe('UsersAdminPage', () => {
     route({
       'GET /api/v1/admin/users': () => { calls += 1; return jsonResponse(200, page([admin, viewer])); },
       'PATCH /api/v1/admin/users/2': () =>
-        jsonResponse(409, apiErrorBody(409, 'LAST_ADMIN', 'At least one active administrator must remain')),
+        jsonResponse(409, apiErrorBody(409, 'STALE_VERSION', 'This account was changed elsewhere')),
     });
     renderWithProviders(<UsersAdminPage />);
     await screen.findByText('view@x.test');
 
     const row = screen.getByRole('row', { name: /view@x.test/ });
-    await userEvent.selectOptions(within(row).getByLabelText('Role for view@x.test'), 'ADMIN');
+    await userEvent.selectOptions(within(row).getByLabelText('Role for view@x.test'), 'ORGANIZER');
 
-    expect(await screen.findByText('At least one active administrator must remain')).toBeInTheDocument();
+    expect(await screen.findByText('This account was changed elsewhere')).toBeInTheDocument();
     expect(calls).toBeGreaterThanOrEqual(2); // initial load + re-sync after the failure
   });
 });

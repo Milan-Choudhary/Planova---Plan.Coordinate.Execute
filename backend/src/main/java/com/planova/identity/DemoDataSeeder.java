@@ -57,6 +57,14 @@ public class DemoDataSeeder implements ApplicationRunner {
             return;
         }
         String hash = passwordEncoder.encode(seedPassword);   // one hash reused: they share a password
+        if (!users.existsByEmail(UserService.PLATFORM_ADMIN_EMAIL)) {
+            users.saveAndFlush(new User(UserService.PLATFORM_ADMIN_EMAIL, "Platform Admin", hash, Role.ADMIN));
+        } else {
+            User platformAdmin = users.findByEmail(UserService.PLATFORM_ADMIN_EMAIL).orElseThrow();
+            if (platformAdmin.getRole() != Role.ADMIN || !platformAdmin.isActive()) {
+                throw new IllegalStateException("Reserved platform admin account conflicts with existing data");
+            }
+        }
         for (Demo d : DEMO_USERS) {
             if (!users.existsByEmail(d.email())) {
                 users.saveAndFlush(new User(d.email(), d.name(), hash, d.role()));
@@ -75,15 +83,21 @@ public class DemoDataSeeder implements ApplicationRunner {
      * flow can be tried immediately: log in as the organizer, report an incident, watch it get assigned.
      */
     private void seedOperations() {
+        UUID organizer = userId("organizer@planova.local");
         Integer existing = jdbc.queryForObject("SELECT count(*) FROM team WHERE name = 'Operations Response'",
                 Integer.class);
         if (existing != null && existing > 0) {
+            jdbc.update("""
+                    UPDATE team t SET created_by = ?
+                    WHERE t.name = 'Operations Response' AND t.created_by = ?
+                      AND EXISTS (SELECT 1 FROM plan p WHERE p.team_id = t.id
+                                  AND p.owner_id = ? AND p.title = 'Demo Summer Fest')
+                    """, organizer, userId("admin@planova.local"), organizer);
             return;
         }
-        UUID organizer = userId("organizer@planova.local");
         UUID team = UUID.randomUUID();
         jdbc.update("INSERT INTO team (id, name, description, created_by) VALUES (?, 'Operations Response', "
-                + "'On-site responders for demo events', ?)", team, userId("admin@planova.local"));
+                + "'On-site responders for demo events', ?)", team, organizer);
         String[][] chain = {{"member@planova.local", "RESPONDER", "1"}, {"member2@planova.local", "RESPONDER", "2"},
                 {"organizer@planova.local", "LEAD", "3"}};
         for (String[] m : chain) {

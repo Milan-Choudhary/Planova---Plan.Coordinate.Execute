@@ -20,6 +20,7 @@ class PlanningIntegrationTest extends FlowTestSupport {
         User organizer = user(Role.ORGANIZER);
         User member = user(Role.TEAM_MEMBER);
         UUID team = team(member);
+        jdbc.update("UPDATE team SET created_by = ? WHERE id = ?", organizer.getId(), team);
 
         String planId = id(post(organizer, "/api/v1/plans", "{\"title\":\"Summer Fest\",\"teamId\":\"%s\"}".formatted(team))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.myPlanRole").value("OWNER")));
@@ -34,6 +35,20 @@ class PlanningIntegrationTest extends FlowTestSupport {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM notification WHERE recipient_id = ? AND type = 'TASK_ASSIGNED'",
                 Integer.class, member.getId())).isEqualTo(1);
         assertThat(taskId).isNotBlank();
+    }
+
+    @Test
+    void organizerCannotReadOrAttachAnotherOrganizersTeam() throws Exception {
+        User owner = user(Role.ORGANIZER);
+        User other = user(Role.ORGANIZER);
+        User admin = user(Role.ADMIN);
+        String team = id(post(owner, "/api/v1/teams", "{\"name\":\"Ceremony-" + UUID.randomUUID() + "\"}")
+                .andExpect(status().isCreated()));
+        get(other, "/api/v1/teams/" + team).andExpect(status().isNotFound());
+        post(other, "/api/v1/plans", "{\"title\":\"Wedding\",\"teamId\":\"%s\"}".formatted(team))
+                .andExpect(status().isNotFound());
+        get(owner, "/api/v1/teams/" + team).andExpect(status().isOk());
+        get(admin, "/api/v1/teams/" + team).andExpect(status().isOk());
     }
 
     @Test

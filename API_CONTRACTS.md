@@ -26,6 +26,7 @@ Clients switch on `code`. The `X-Correlation-Id` response header equals `correla
 | Method & path | Role | Request | Success |
 |---|---|---|---|
 | `POST /auth/login` (public) | – | `{email, password}` | 200 `{accessToken, tokenType:"Bearer", expiresInSeconds, user}` |
+| `POST /auth/register` (public) | – | `{name, email, password, role?}`. Choose `ORGANIZER` or `TEAM_MEMBER`. Omitting the role gives `VIEWER`. | 201 `User`. Sign in to obtain a JWT. |
 | `GET /auth/me` | any | – | 200 `User` |
 | `GET /admin/users?page=0&size=20` | ADMIN | size clamped 1–100 | 200 `{items, page, size, totalItems, totalPages}` |
 | `POST /admin/users` | ADMIN | `{email, name, role, password(12–72)}` | 201 + `Location`, `User` |

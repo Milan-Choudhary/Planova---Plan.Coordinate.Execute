@@ -74,6 +74,11 @@ public class PlanController {
         return service.members(Actor.of(auth), id);
     }
 
+    @GetMapping("/{id}/workers")
+    public List<PlanMemberResponse> workers(Authentication auth, @PathVariable UUID id) {
+        return service.workers(Actor.of(auth), id);
+    }
+
     @PutMapping("/{id}/members")
     public List<PlanMemberResponse> setMember(Authentication auth, @PathVariable UUID id,
                                               @Valid @RequestBody PlanMemberRequest request) {

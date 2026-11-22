@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 
@@ -12,7 +12,8 @@ export function LoginPage() {
   const { status, login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as { from?: string } | null)?.from ?? '/';
+  const redirect = location.state as { from?: string; registered?: boolean } | null;
+  const from = redirect?.from ?? '/';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -49,9 +50,11 @@ export function LoginPage() {
   }
 
   return (
-    <div className="center-screen">
+    <div className="center-screen auth-screen">
       <form className="card login-card" onSubmit={handleSubmit} noValidate aria-labelledby="login-title">
+        <p className="auth-brand">Planova AI</p>
         <h1 id="login-title">Sign in to Planova AI</h1>
+        {redirect?.registered && <p className="alert alert-ok" role="status">Account created. Sign in to continue.</p>}
 
         {serverError && (
           <div className="alert alert-error" role="alert">
@@ -97,6 +100,7 @@ export function LoginPage() {
         <button type="submit" className="btn" disabled={submitting}>
           {submitting ? 'Signing in…' : 'Sign in'}
         </button>
+        <p className="auth-footer">New to Planova? <Link to="/signup">Create an account</Link></p>
       </form>
     </div>
   );

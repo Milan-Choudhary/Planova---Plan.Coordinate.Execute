@@ -53,6 +53,7 @@ export interface Team {
   name: string;
   description?: string;
   memberCount: number;
+  canManage: boolean;
 }
 
 export interface TeamMember {
@@ -70,6 +71,7 @@ export interface TeamDetail {
   name: string;
   description?: string;
   members: TeamMember[];
+  canManage: boolean;
 }
 
 export interface Plan {

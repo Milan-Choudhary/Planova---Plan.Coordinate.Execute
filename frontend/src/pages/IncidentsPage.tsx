@@ -2,7 +2,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useLoad } from '../api/useLoad';
 import type { Incident, PageResponse } from '../api/types';
 import { LoadState } from '../components/LoadState';
-import { IncidentTable } from './PlanDetailPage';
+import { IncidentQueue } from '../components/IncidentQueue';
 
 export function IncidentsPage() {
   const [params] = useSearchParams();
@@ -14,7 +14,12 @@ export function IncidentsPage() {
     <section className="card">
       <h1>{params.get('mine') ? 'Incidents assigned to me' : 'Incidents'}</h1>
       <LoadState load={load} what="incidents">
-        {(page) => page.items.length === 0 ? <p className="muted">No incidents to show.</p> : <IncidentTable items={page.items} />}
+        {(page) => (
+          <>
+            <p className="muted">Showing {page.items.length} of {page.totalItems} incidents, most recently updated first.</p>
+            <IncidentQueue items={page.items} />
+          </>
+        )}
       </LoadState>
     </section>
   );

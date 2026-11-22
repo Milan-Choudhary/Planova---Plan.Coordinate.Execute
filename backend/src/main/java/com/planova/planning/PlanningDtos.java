@@ -1,6 +1,7 @@
 package com.planova.planning;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.Instant;
@@ -26,15 +27,19 @@ public final class PlanningDtos {
     public record AvailabilityRequest(@NotNull Boolean available) {
     }
 
+    public record TeamMemberEmailRequest(@NotBlank @Email @Size(max = 254) String email,
+                                         @NotBlank String teamRole, Integer escalationOrder) {
+    }
+
     public record TeamMemberResponse(UUID userId, String name, String email, String userRole, String teamRole,
                                      boolean available, Integer escalationOrder) {
     }
 
-    public record TeamResponse(UUID id, String name, String description, int memberCount) {
+    public record TeamResponse(UUID id, String name, String description, int memberCount, boolean canManage) {
     }
 
     public record TeamDetailResponse(UUID id, String name, String description,
-                                     java.util.List<TeamMemberResponse> members) {
+                                     java.util.List<TeamMemberResponse> members, boolean canManage) {
     }
 
     // ---------------------------------------------------------------- plans

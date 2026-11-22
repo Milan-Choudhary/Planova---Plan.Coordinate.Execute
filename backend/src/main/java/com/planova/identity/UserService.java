@@ -3,6 +3,7 @@ package com.planova.identity;
 import com.planova.audit.AuditService;
 import com.planova.common.ApiException;
 import com.planova.identity.IdentityDtos.CreateUserRequest;
+import com.planova.identity.IdentityDtos.RegisterRequest;
 import com.planova.identity.IdentityDtos.UpdateUserRequest;
 import com.planova.identity.IdentityDtos.UserResponse;
 import java.nio.charset.StandardCharsets;
@@ -23,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class UserService {
 
+    static final String PLATFORM_ADMIN_EMAIL = "ajnr@planovaplaform";
     private static final int BCRYPT_MAX_BYTES = 72;
 
     private final UserRepository users;
@@ -47,12 +49,31 @@ public class UserService {
 
     @Transactional
     public UserResponse create(UUID actorId, CreateUserRequest req) {
+        if (req.role() == Role.ADMIN) {
+            throw ApiException.forbidden("SYSTEM_ROLE", "Platform admins are provisioned by the system");
+        }
+        return createAccount(actorId, req.email(), req.name(), req.password(), req.role());
+    }
+
+    @Transactional
+    public UserResponse register(RegisterRequest req) {
+        Role role = req.role() == null ? Role.VIEWER : req.role();
+        if (role == Role.ADMIN) {
+            throw ApiException.forbidden("SYSTEM_ROLE", "Platform admins are provisioned by the system");
+        }
+        return createAccount(null, req.email(), req.name(), req.password(), role);
+    }
+
+    private UserResponse createAccount(UUID actorId, String rawEmail, String name, String password, Role role) {
         // BCrypt silently ignores bytes past 72; characters like "é" use 2+ bytes, so the
         // @Size(max=72) on characters is not enough. Check the real byte length.
-        if (req.password().getBytes(StandardCharsets.UTF_8).length > BCRYPT_MAX_BYTES) {
+        if (password.getBytes(StandardCharsets.UTF_8).length > BCRYPT_MAX_BYTES) {
             throw ApiException.badRequest("PASSWORD_TOO_LONG", "Password must be at most 72 bytes");
         }
-        String email = req.email().trim().toLowerCase(Locale.ROOT);
+        String email = rawEmail.trim().toLowerCase(Locale.ROOT);
+        if (PLATFORM_ADMIN_EMAIL.equals(email)) {
+            throw ApiException.conflict("EMAIL_TAKEN", "This email is reserved");
+        }
         if (users.existsByEmail(email)) {
             throw ApiException.conflict("EMAIL_TAKEN", "A user with this email already exists");
         }
@@ -60,14 +81,18 @@ public class UserService {
         // saveAndFlush (not save) sends the INSERT now, so a concurrent duplicate that slipped past
         // the exists-check hits the unique index HERE and becomes a clean 409, not a late commit failure.
         User saved = users.saveAndFlush(
-                new User(email, req.name().trim(), passwordEncoder.encode(req.password()), req.role()));
+                new User(email, name.trim(), passwordEncoder.encode(password), role));
 
-        audit.record(actorId, "USER_CREATED", "USER", saved.getId(), null, null, snapshot(saved));
+        audit.record(actorId == null ? saved.getId() : actorId, "USER_CREATED", "USER",
+                saved.getId(), null, null, snapshot(saved));
         return UserResponse.from(saved);
     }
 
     @Transactional
     public UserResponse update(UUID actorId, UUID targetId, UpdateUserRequest req) {
+        if (req.role() == Role.ADMIN) {
+            throw ApiException.forbidden("SYSTEM_ROLE", "Platform admins are provisioned by the system");
+        }
         if (req.role() == null && req.status() == null) {
             throw ApiException.badRequest("EMPTY_UPDATE", "Provide a role and/or a status to change");
         }
@@ -77,6 +102,9 @@ public class UserService {
         }
 
         User user = find(targetId);
+        if (PLATFORM_ADMIN_EMAIL.equals(user.getEmail())) {
+            throw ApiException.forbidden("SYSTEM_ROLE", "This platform admin is managed by the system");
+        }
         Map<String, Object> before = snapshot(user);
 
         Role newRole = req.role() != null ? req.role() : user.getRole();

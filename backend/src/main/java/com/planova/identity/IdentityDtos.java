@@ -30,6 +30,18 @@ public final class IdentityDtos {
     public record LoginResponse(String accessToken, String tokenType, long expiresInSeconds, UserResponse user) {
     }
 
+    public record RegisterRequest(
+            @NotBlank @Email @Size(max = 254) String email,
+            @NotBlank @Size(max = 120) String name,
+            @NotBlank @Size(min = 12, max = 72) String password,
+            Role role) {
+        public RegisterRequest {
+            if (email != null) {
+                email = email.trim();
+            }
+        }
+    }
+
     public record CreateUserRequest(
             @NotBlank @Email @Size(max = 254) String email,
             @NotBlank @Size(max = 120) String name,

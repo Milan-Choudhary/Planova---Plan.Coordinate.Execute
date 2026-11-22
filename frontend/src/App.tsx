@@ -3,6 +3,7 @@ import { ProtectedRoute } from './auth/ProtectedRoute';
 import { Layout } from './components/Layout';
 import { DashboardPage } from './pages/DashboardPage';
 import { LoginPage } from './pages/LoginPage';
+import { SignupPage } from './pages/SignupPage';
 import { UsersAdminPage } from './pages/UsersAdminPage';
 import { AdminAuditPage } from './pages/AdminAuditPage';
 import { IncidentDetailPage } from './pages/IncidentDetailPage';
@@ -17,6 +18,7 @@ export function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/signup" element={<SignupPage />} />
       <Route
         element={
           <ProtectedRoute>

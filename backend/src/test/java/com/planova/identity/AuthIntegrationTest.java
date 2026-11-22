@@ -84,6 +84,41 @@ class AuthIntegrationTest extends IntegrationTestBase {
     // ---------------------------------------------------------------- login
 
     @Test
+    void publicRegistrationRejectsAdminAndAllowsOrganizer() throws Exception {
+        mvc.perform(post("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"name":"New Viewer","email":"  NEW@example.test  ",
+                         "password":"%s","role":"ADMIN"}
+                        """.formatted(PASSWORD)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("SYSTEM_ROLE"));
+        mvc.perform(post("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"name":"New Organizer","email":"  NEW@example.test  ",
+                         "password":"%s","role":"ORGANIZER"}
+                        """.formatted(PASSWORD)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.email").value("new@example.test"))
+                .andExpect(jsonPath("$.role").value("ORGANIZER"))
+                .andExpect(jsonPath("$.passwordHash").doesNotExist());
+
+        login("new@example.test", PASSWORD)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.user.role").value("ORGANIZER"));
+
+        mvc.perform(post("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"name":"Duplicate","email":"new@example.test","password":"%s"}
+                        """.formatted(PASSWORD)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("EMAIL_TAKEN"));
+    }
+
+    @Test
     @DisplayName("login with valid credentials returns a token and the user, never the password hash")
     void loginSucceeds() throws Exception {
         createUser("viewer@example.test", Role.VIEWER);

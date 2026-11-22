@@ -55,7 +55,7 @@ public class PlanService {
         if (!VISIBILITY.contains(visibility)) {
             throw ApiException.badRequest("INVALID_VISIBILITY", "visibility must be PRIVATE or TEAM");
         }
-        requireTeamExists(req.teamId());
+        requireAttachableTeam(req.teamId(), actor);
         UUID id = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO plan (id, title, description, owner_id, team_id, start_date, end_date, visibility)
@@ -146,7 +146,9 @@ public class PlanService {
         LocalDate start = req.startDate() != null ? req.startDate() : before.startDate();
         LocalDate end = req.endDate() != null ? req.endDate() : before.endDate();
         validateDates(start, end);
-        requireTeamExists(req.teamId());
+        if (req.teamId() != null && !req.teamId().equals(before.teamId())) {
+            requireAttachableTeam(req.teamId(), actor);
+        }
         jdbc.update("""
                 UPDATE plan SET title = COALESCE(?, title), description = COALESCE(?, description),
                        team_id = COALESCE(?, team_id), start_date = ?, end_date = ?,
@@ -199,13 +201,15 @@ public class PlanService {
         return m;
     }
 
-    private void requireTeamExists(UUID teamId) {
+    private void requireAttachableTeam(UUID teamId, Actor actor) {
         if (teamId == null) {
             return;
         }
-        Integer n = jdbc.queryForObject("SELECT count(*) FROM team WHERE id = ?", Integer.class, teamId);
+        Integer n = jdbc.queryForObject("""
+                SELECT count(*) FROM team WHERE id = ? AND (? OR created_by = ?)
+                """, Integer.class, teamId, actor.isAdmin(), actor.id());
         if (n == null || n == 0) {
-            throw ApiException.badRequest("TEAM_NOT_FOUND", "The selected team does not exist");
+            throw ApiException.notFound("TEAM_NOT_FOUND", "The selected team is not available for this plan");
         }
     }
 
@@ -227,6 +231,22 @@ public class PlanService {
                 ORDER BY CASE m.plan_role WHEN 'OWNER' THEN 0 WHEN 'EDITOR' THEN 1 ELSE 2 END, lower(u.name)
                 """, (rs, i) -> new PlanMemberResponse(rs.getObject("id", UUID.class), rs.getString("name"),
                 rs.getString("email"), rs.getString("role"), rs.getString("plan_role")), planId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PlanMemberResponse> workers(Actor actor, UUID planId) {
+        PlanAccess plan = access.requireEdit(planId, actor);
+        return jdbc.query("""
+                SELECT u.id, u.name, u.email, u.role, COALESCE(pm.plan_role, 'TEAM_MEMBER') AS plan_role
+                FROM app_user u
+                LEFT JOIN plan_member pm ON pm.user_id = u.id AND pm.plan_id = ?
+                WHERE u.status = 'ACTIVE' AND u.role <> 'VIEWER'
+                  AND (pm.user_id IS NOT NULL OR EXISTS (
+                      SELECT 1 FROM team_membership tm WHERE tm.team_id = ? AND tm.user_id = u.id
+                  ))
+                ORDER BY lower(u.name), u.id
+                """, (rs, i) -> new PlanMemberResponse(rs.getObject("id", UUID.class), rs.getString("name"),
+                rs.getString("email"), rs.getString("role"), rs.getString("plan_role")), planId, plan.teamId());
     }
 
     @Transactional

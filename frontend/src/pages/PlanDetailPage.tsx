@@ -129,7 +129,7 @@ const NEXT: Record<TaskStatus, TaskStatus[]> = {
 
 function Tasks({ plan }: { plan: Plan }) {
   const tasks = useLoad<PageResponse<Task>>(`/api/v1/plans/${plan.id}/tasks?size=100`);
-  const members = useLoad<PlanMember[]>(plan.canEdit ? `/api/v1/plans/${plan.id}/members` : null);
+  const members = useLoad<PlanMember[]>(plan.canEdit ? `/api/v1/plans/${plan.id}/workers` : null);
   const [title, setTitle] = useState('');
   const [assigneeId, setAssigneeId] = useState('');
   const [error, setError] = useState<string | null>(null);
