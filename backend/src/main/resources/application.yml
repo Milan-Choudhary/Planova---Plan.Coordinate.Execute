@@ -1,0 +1,76 @@
+# Application configuration. Contains NO secrets: every credential is a ${PLACEHOLDER}
+# resolved from the environment or from the root .env file (see spring.config.import below).
+
+spring:
+  application:
+    name: planova-ai
+  config:
+    import:
+      # Loads KEY=value lines from .env as properties. `optional:` = no error if absent
+      # (e.g. inside Docker, where compose injects the same names as real env vars).
+      # ../.env  -> when started from backend/ (mvn spring-boot:run, IDE default)
+      # ./.env   -> when started from the repository root
+      - "optional:file:../.env[.properties]"
+      - "optional:file:./.env[.properties]"
+
+  datasource:
+    # Port: DB_PORT (set by docker compose for the backend container) else the host-published
+    # port from .env, else 5432. No default for the password: startup fails loudly if unset.
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:${POSTGRES_HOST_PORT:5432}}/${POSTGRES_DB:planova}
+    username: ${POSTGRES_USER:planova}
+    password: ${POSTGRES_PASSWORD}
+
+  jpa:
+    open-in-view: false          # no lazy loading during view rendering; keeps transactions explicit
+    hibernate:
+      ddl-auto: validate         # Flyway owns the schema; Hibernate only CHECKS entities match it
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true                # runs db/migration/V*.sql automatically at startup
+
+  jackson:
+    default-property-inclusion: non_null
+
+server:
+  port: ${BACKEND_PORT:8080}
+  error:
+    include-message: never       # never leak internal messages through the default error page
+    include-stacktrace: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info     # nothing else (no env, beans, heapdump ...)
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  pattern:
+    # %X{correlationId} is filled by CorrelationIdFilter so one request can be traced across log lines.
+    level: "%5p [%X{correlationId:-}]"
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+planova:
+  security:
+    jwt-secret: ${JWT_SECRET}
+    jwt-expiry-minutes: ${JWT_EXPIRY_MINUTES:60}
+    cors-allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  scheduler:
+    enabled: ${SCHEDULER_ENABLED:true}       # tests switch it off and drive the services directly
+    escalation-interval-ms: 15000
+    recovery-interval-ms: 30000
+    notification-interval-ms: 20000
+  notifications:
+    max-attempts: 3
+  seed:
+    # Only used by the `dev` profile demo-user seeder. Blank = seeding skipped.
+    password: ${SEED_PASSWORD:}
