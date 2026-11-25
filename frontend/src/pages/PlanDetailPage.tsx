@@ -271,16 +271,84 @@ export function IncidentTable({ items }: { items: Incident[] }) {
 }
 
 function Members({ plan }: { plan: Plan }) {
-  const members = useLoad<PlanMember[]>(`/api/v1/plans/${plan.id}/members`);
+  const path = `/api/v1/plans/${plan.id}/members`;
+  const members = useLoad<PlanMember[]>(path);
+  const canDelegate = plan.canManage && plan.status !== 'ARCHIVED';
+  const workers = useLoad<PlanMember[]>(canDelegate ? `/api/v1/plans/${plan.id}/workers` : null);
+  const [selected, setSelected] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState('');
+
+  async function changeEditor(userId: string, grant: boolean) {
+    setBusy(true);
+    setError(null);
+    setNotice('');
+    try {
+      await apiFetch(grant ? path : `${path}/${userId}`, {
+        method: grant ? 'PUT' : 'DELETE',
+        body: grant ? { userId, planRole: 'EDITOR' } : undefined,
+      });
+      setSelected('');
+      setNotice(grant ? 'Editor access granted.' : 'Editor access revoked.');
+      members.reload();
+      workers.reload();
+    } catch (err) {
+      setError(messageOf(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <LoadState load={members} what="members">
-      {(list) => (
-        <table>
-          <thead><tr><th>Name</th><th>Email</th><th>Plan role</th></tr></thead>
-          <tbody>{list.map((m) => <tr key={m.userId}><td>{m.name}</td><td>{m.email}</td><td>{m.planRole}</td></tr>)}</tbody>
-        </table>
+    <div className="stack">
+      {error && <p className="alert alert-error" role="alert">{error}</p>}
+      {notice && <p className="alert alert-ok" role="status">{notice}</p>}
+      {canDelegate && (
+        <LoadState load={workers} what="eligible organizers">
+          {(list) => {
+            const candidates = list.filter((m) =>
+              m.userRole === 'ORGANIZER' && m.planRole !== 'OWNER' && m.planRole !== 'EDITOR');
+            return (
+              <form className="card" onSubmit={(event) => {
+                event.preventDefault();
+                if (selected) void changeEditor(selected, true);
+              }}>
+                <h2>Grant plan Editor access</h2>
+                <p className="muted">Editors can change the schedule and manage tasks and incidents across this plan.</p>
+                {candidates.length === 0 ? <p>No eligible organizers on this plan or its responder team.</p> : (
+                  <>
+                    <label htmlFor="plan-editor">Organizer</label>
+                    <select id="plan-editor" value={selected} onChange={(e) => setSelected(e.target.value)}>
+                      <option value="">Choose an organizer</option>
+                      {candidates.map((m) => <option key={m.userId} value={m.userId}>{m.name} ({m.email})</option>)}
+                    </select>
+                    <button type="submit" className="btn" disabled={!selected || busy}>Grant Editor access</button>
+                  </>
+                )}
+              </form>
+            );
+          }}
+        </LoadState>
       )}
-    </LoadState>
+      <LoadState load={members} what="members">
+        {(list) => (
+          <table>
+            <thead><tr><th>Name</th><th>Email</th><th>Plan role</th>{canDelegate && <th>Access</th>}</tr></thead>
+            <tbody>{list.map((m) => (
+              <tr key={m.userId}>
+                <td>{m.name}</td><td>{m.email}</td><td>{m.planRole}</td>
+                {canDelegate && <td>{m.planRole === 'EDITOR' && (
+                  <button type="button" className="btn btn-secondary" disabled={busy}
+                    aria-label={`Revoke Editor access for ${m.name}`}
+                    onClick={() => void changeEditor(m.userId, false)}>Revoke Editor</button>
+                )}</td>}
+              </tr>
+            ))}</tbody>
+          </table>
+        )}
+      </LoadState>
+    </div>
   );
 }
 
