@@ -45,11 +45,7 @@ public class AccessService {
 
     private PlanAccess load(UUID planId, Actor actor) {
         List<PlanAccess> rows = jdbc.query("""
-                SELECT p.id, p.status, p.team_id, p.owner_id,
-                       COALESCE(pm.plan_role, CASE WHEN ? AND EXISTS (
-                           SELECT 1 FROM team_membership lead WHERE lead.team_id = p.team_id
-                           AND lead.user_id = ? AND lead.team_role = 'LEAD'
-                       ) THEN 'EDITOR' END) AS plan_role,
+                SELECT p.id, p.status, p.team_id, p.owner_id, pm.plan_role,
                        EXISTS (SELECT 1 FROM team_membership tm
                                 WHERE tm.team_id = p.team_id AND tm.user_id = ?) AS team_member
                 FROM plan p
@@ -59,7 +55,7 @@ public class AccessService {
                 (rs, i) -> new PlanAccess(rs.getObject("id", UUID.class), rs.getString("status"),
                         rs.getObject("team_id", UUID.class), rs.getObject("owner_id", UUID.class),
                         rs.getString("plan_role"), rs.getBoolean("team_member")),
-                actor.canCreatePlans(), actor.id(), actor.id(), actor.id(), planId);
+                actor.id(), actor.id(), planId);
         return rows.isEmpty() ? null : rows.get(0);
     }
 

@@ -1,6 +1,8 @@
 package com.planova.planning;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -49,6 +51,37 @@ class PlanningIntegrationTest extends FlowTestSupport {
                 .andExpect(status().isNotFound());
         get(owner, "/api/v1/teams/" + team).andExpect(status().isOk());
         get(admin, "/api/v1/teams/" + team).andExpect(status().isOk());
+    }
+
+    @Test
+    void teamLeadCanEditOnlyWhileExplicitlyDelegated() throws Exception {
+        User owner = user(Role.ORGANIZER);
+        User lead = user(Role.ORGANIZER);
+        UUID team = team(lead);
+        jdbc.update("UPDATE team_membership SET team_role = 'LEAD' WHERE team_id = ? AND user_id = ?",
+                team, lead.getId());
+        String path = "/api/v1/plans/" + plan(owner, team);
+        String grant = "{\"userId\":\"%s\",\"planRole\":\"EDITOR\"}".formatted(lead.getId());
+        String task = id(post(owner, path + "/tasks",
+                "{\"title\":\"Venue check\",\"assigneeId\":\"%s\"}".formatted(lead.getId()))
+                .andExpect(status().isCreated()));
+
+        get(lead, path).andExpect(status().isOk()).andExpect(jsonPath("$.canEdit").value(false));
+        patch(lead, path, "{\"title\":\"Before delegation\"}").andExpect(status().isForbidden());
+        mvc.perform(put(path + "/members").header("Authorization", bearer(lead))
+                .contentType("application/json").content(grant)).andExpect(status().isForbidden());
+
+        mvc.perform(put(path + "/members").header("Authorization", bearer(owner))
+                .contentType("application/json").content(grant)).andExpect(status().isOk());
+        get(lead, path).andExpect(status().isOk()).andExpect(jsonPath("$.myPlanRole").value("EDITOR"))
+                .andExpect(jsonPath("$.canManage").value(false));
+        patch(lead, path, "{\"title\":\"During delegation\"}").andExpect(status().isOk());
+
+        mvc.perform(delete(path + "/members/" + lead.getId()).header("Authorization", bearer(owner)))
+                .andExpect(status().isOk());
+        get(lead, path).andExpect(status().isOk()).andExpect(jsonPath("$.canEdit").value(false));
+        patch(lead, path, "{\"title\":\"After revocation\"}").andExpect(status().isForbidden());
+        patch(lead, "/api/v1/tasks/" + task, "{\"status\":\"IN_PROGRESS\"}").andExpect(status().isOk());
     }
 
     @Test
